@@ -64,7 +64,8 @@ If (!(Test-Path $WebSearch)) {
 Set-ItemProperty $WebSearch DisableWebSearch -Value 1
 
 #----------------------------------#
-
+$DefaultUserHivePath = "C:\Users\Default\NTUSER.DAT"
+reg load "HKU\DefaultUser0" $HivePath
 # Deeper Debloat
 # Disable Bing Search
     $WebSearch = "Registry::HKEY_USERS\defaultuser0\SOFTWARE\Microsoft\Windows\CurrentVersion\Search"
@@ -294,6 +295,8 @@ if ($version -like "*Windows 11*") {
     }
 }
 
+#Unload defaultuser0 user profile
+reg unload HKU\DefaultUser0
 <#
 #----------------------------------#
 
@@ -589,4 +592,5 @@ cmd /c '"C:\Program Files (x86)\InstallShield Installation Information\{2F3E37A4
 $TestDP = Test-Path "C:\Program Files\Dell\Dell Pair\Uninstall.exe"
 if ($TestDP -eq $true) {
 cmd /c '"C:\Program Files\Dell\Dell Pair\Uninstall.exe" /S'
+
 }
