@@ -7,7 +7,7 @@ This will disable a user in Active Directory automatically with Powershell. Sync
  
 .NOTES
 Name: AD-Offboard
-Version: 2.08
+Version: 2.09
 Author: InvokeErr404
 Date of last revision: 01/09/2026
 
