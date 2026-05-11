@@ -140,7 +140,7 @@ switch ($IDconfirm) {
 } Until (($IDconfirm) -eq 'Y')
 Clear-Host
 
-# Set Description/Job title
+# Set Description/Job title (PUT IN YOUR OWN VALUES)
 $Description = Read-Host -Prompt "Enter in the User's job title. This will also be their description."
 # Department OU Menu
 function Show-Menu
@@ -566,7 +566,7 @@ switch ($LicPrompt) {
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 
-# Send onboarding email
+# Send onboarding email (EDIT NAMES AS DESIRED)
 $message = @"
 <b>Welcome to [BUSINESS_NAME]!</b>
 <br><br>
