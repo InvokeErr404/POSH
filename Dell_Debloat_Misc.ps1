@@ -1,3 +1,5 @@
+## This uninstalls additional Dell debloat and prevent installation. NOTE: Support Assist Remediation may reinstall when Dell Command Update installs latest ##
+
 # Support Assist and Support Assit OS Plugin
 $SAVer = Get-ChildItem -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall, HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall  |
     Get-ItemProperty |
