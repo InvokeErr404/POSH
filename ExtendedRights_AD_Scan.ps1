@@ -1,15 +1,17 @@
-###### Search common delegation targets
+## This searches OU's/Domains for extended rights on objects. Useful for auditing potential indirect permissions on groups, comps, etc... ##
+
+# Search common delegation targets
 $filter = "(|(objectClass=domain)(objectClass=organizationalUnit)(objectClass=group)(sAMAccountType=805306368)(objectCategory=Computer))" 
 
-###### Search just OUs and Groups
+# Search just OUs and Groups
 #$filter = "(|(objectClass=organizationalUnit)(objectClass=group))"
 
-###### More filters can be found here: http://www.ldapexplorer.com/en/manual/109050000-famous-filters.htm
+# More filters can be found here: http://www.ldapexplorer.com/en/manual/109050000-famous-filters.htm
 
-###### Connect to DOMAINCONTROLLER using LDAP path, with USERNAME and PASSWORD
+# Connect to DOMAINCONTROLLER using LDAP path, with USERNAME and PASSWORD
 #$bSearch = New-Object System.DirectoryServices.DirectoryEntry("LDAP://DOMAINCONTROLLER/LDAP"), "USERNAME", "PASSWORD") 
 
-###### Connect to DOMAINCONTROLLER using LDAP path
+# Connect to DOMAINCONTROLLER using LDAP path
 $bSearch = New-Object System.DirectoryServices.DirectoryEntry("LDAP://DC1.contoso.com/DC=contoso,DC=com") 
 
 $dSearch = New-Object System.DirectoryServices.DirectorySearcher($bSearch)
@@ -18,7 +20,7 @@ $dSearch.PageSize = 1000
 $dSearch.Filter = $filter #comment out to look at all object types
 $dSearch.SearchScope = "Subtree"
 
-####### List of extended permissions available here: https://technet.microsoft.com/en-us/library/ff405676.aspx
+# List of extended permissions available here: https://technet.microsoft.com/en-us/library/ff405676.aspx
 $extPerms = '00299570-246d-11d0-a768-00aa006e0529', 'ab721a54-1e2f-11d0-9819-00aa0040529b', '0'
 $results = @()
 
