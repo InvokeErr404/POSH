@@ -9,11 +9,10 @@ This will disable a user in Active Directory automatically with Powershell. Sync
 Name: AD-Offboard
 Version: 2.08
 Author: InvokeErr404
-Date of last revision: 07/11/2024
+Date of last revision: 01/09/2026
 
 .ORIGINAL CODE
 Inspired By: The Sysadmin Channel
-Author: Logan Simmons
 
 .NOTES
 2.0  - Initial Release (Rework of original script)
@@ -25,6 +24,7 @@ Author: Logan Simmons
 2.06 - Changed bounceback to display manager name instead of email (per CIO's Request).
 2.07 - Updated bounceback to include ALL external senders and not just those in user's contact list.
 2.08 - Removed duplicate bounce back email variable and adjusted variables on prompt. Resulted in custom email not applying prior to change.
+2.09 - Fix hard coded reference of $ADServer variable on line 199 (line number may not align in GitHub).
 #>
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -73,13 +73,13 @@ Import-Module ActiveDirectory -ErrorAction Stop
 # Connect to MgGraph
 Connect-MgGraph -Scopes User.ReadWrite.All, GroupMember.ReadWrite.All, Group.ReadWrite.All, Organization.Read.All, Directory.Read.All -ErrorAction Stop
 # Connect to Exchange Online
-$acctName = $env:UserName+"@contoso.com"
+$acctName = Read-Host "Enter the UPN of the cloud admin (for Exchange/Graph)"
 Connect-ExchangeOnline -UserPrincipalName $acctName -ShowBanner:$false -ShowProgress $true
 Clear-Host
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 
-$ADServer = "DC1.contoso.com"
+$ADServer = "DC1.contoso.local"
 
 # Get the user object
 Do {
@@ -127,6 +127,7 @@ foreach ($membership in $memberships) {
 Start-Sleep 10
 Clear-Host
 
+<#
 # Get the manager attribute for later
 $getmanager = Get-ADUser -Identity $user.SamAccountName -Properties Manager
 $managerDN = $getmanager.manager
@@ -137,6 +138,7 @@ if ($managerDN) {
 else {
     $managerUPN = "[COMPANY NAME] HR"
 }
+#>
 
 # Remove the manager attribute
 Set-ADUser -Identity $user.SamAccountName -Manager $null -Server $ADServer
@@ -147,28 +149,55 @@ $date = Get-Date -Format "MM-dd-yyyy"
 $description = "$title ($date)"
 Set-ADUser -Identity $user.SamAccountName -Description $description -Server $ADServer
 
-# Move the user to the "Disabled Accounts" OU
-$OU = "OU=Disabled Accounts,DC=contoso,DC=com"
-Move-ADObject -Identity $user.DistinguishedName -TargetPath $OU -Server $ADServer
+# Step 1: Ask if archiving the user
+$archiveChoice = Read-Host -Prompt "Do you want to archive this user? 
+    Yes [Y]  No [N]"
 
+switch ($archiveChoice.ToUpper()) {
+    'Y' {
+        # Archive User
+        $OU = "OU=Disabled-converted to Shared Mailboxes,OU=GG-Users,DC=GG,DC=local"
+        Write-Host "Archiving user. Moving to $OU..." -ForegroundColor Green
+        Move-ADObject -Identity $user.DistinguishedName -TargetPath $OU -Server $ADServer
+
+        # Automatically convert to shared mailbox
+        Write-Host "Converting $($user.Name)'s mailbox to shared..." -ForegroundColor Green
+        Set-Mailbox -Identity $user.UserPrincipalName -Type Shared
+        Start-Sleep 5
+        Clear-Host
+    }
+    'N' {
+        # NOT to archiving
+        $OU = "OU=Disabled Users,DC=GG,DC=local"
+        Write-Host "Not archiving. Moving to $OU...Please delete account from $OU once script completes." -ForegroundColor Yellow
+        Move-ADObject -Identity $user.DistinguishedName -TargetPath $OU -Server $ADServer
+
+        Write-Host "Skipping shared mailbox conversion since user is not archived." -ForegroundColor Yellow
+    }
+    default {
+        Write-Host "Invalid input. Please enter Y or N." -ForegroundColor Red
+    }
+}
+
+<#
 # Remove from Broadcast
 Write-Host "Removing User from Broadcast" -ForegroundColor Green
 Set-ADUser -Identity $user.SamAccountName -Remove @{extensionAttribute15="Broadcast"} -Server $ADServer
 Start-Sleep 10
+#>
 
-#Hide from GAL
+<#
+# Hide from GAL
 Write-Host "Removing from Global Address List in Exchange" -ForegroundColor Green
 Start-Sleep 2
 Set-ADUser -Server $ADServer -Identity $user.SamAccountName -Add @{msExchHideFromAddressLists="TRUE"}
 Clear-Host
+#>
 
-# Syncing the AD
-Invoke-Command -ComputerName HYBRID_SYNC_SERVER {Start-ADSyncSyncCycle -PolicyType Delta}
+# Syncing AD
+Invoke-Command -ComputerName $ADServer {Start-ADSyncSyncCycle -PolicyType Delta}
 Write-Host "Sleeping...Please Wait 60 seconds." -ForegroundColor Red
 Start-Sleep 60
-
-# Convert the account to a shared mailbox
-Set-Mailbox -Identity $user.UserPrincipalName -Type Shared
 
 # Set an auto-reply on the mailbox
 $autoreply = Read-Host -Prompt "Script sets an automated bounce back email. Would you like to set a custom one?          
@@ -184,7 +213,7 @@ switch ($autoreply) {
     <br><br>
     This email is no longer monitored by [COMPANY NAME].
     <br>
-    Please contact $managerUPN for assistance on your inquiry. 
+    Please contact <a href="mailto:helpdesk@contoso.com">helpdesk@contoso.com </a> for assistance on your inquiry. 
     <br><br>
     Regards,
     <br> 
@@ -197,7 +226,8 @@ switch ($autoreply) {
 }
 
 # Prompt for delegation
-$delegateprompt = Read-Host "Do you want to set delegation for this mailbox? (Y/N)"
+$delegateprompt = Read-Host "Do you want to set delegation for this mailbox?
+    Yes [Y]   No [N]"
 if ($delegateprompt -eq "y") { Do {
     $delname = Read-Host "Enter SamAccountName or FULL Name of user (must be an exact match)"
     $delegate = Get-ADUser -Filter "samaccountname -eq '$delname' -OR name -eq '$delname'"
@@ -205,7 +235,8 @@ if ($delegateprompt -eq "y") { Do {
             "This user does not exist in AD"
     }
     Else {
-        $delegateconfirm = Read-Host "$($delegate.name) : Is this who you want to give mailbox delegation to? (Y/N)"
+        $delegateconfirm = Read-Host "$($delegate.name) : Is this who you want to give mailbox delegation to?
+            Yes [Y]   No [N]"
         switch ($delegateconfirm) {
             'Y' { Add-MailboxPermission -Identity $user.SamAccountName -User $delegate.SamAccountName -AccessRights FullAccess -AutoMapping:$true
             Continue }
@@ -214,7 +245,8 @@ if ($delegateprompt -eq "y") { Do {
 }}}Until (($delegateconfirm) -eq 'Y')
 
 # Prompt for OneDrive/SharePoint delegation
-$delegateoneprompt = Read-Host "Do you want to set delegation for OneDrive/Personal SharePoint? (Y/N)"
+$delegateoneprompt = Read-Host "Do you want to set delegation for OneDrive/Personal SharePoint?
+    Yes [Y]   No [N]"
 if ($delegateoneprompt -eq "y") { Do {
         switch ($delegateoneconfirm) {
             'Y' {
