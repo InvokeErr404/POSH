@@ -1,0 +1,30 @@
+## This is to setup cloud kerberos trust between on-prem and entra/azure ##
+## Run these commands on your DC/server with the entra connector installed ##
+
+# First, ensure TLS 1.2 for PowerShell gallery access.
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+
+$domain = "contoso.local"
+
+$domainCred = Get-Credential
+
+$cloudUserName = "global.admin@contoso.com"
+
+Set-AzureADKerberosServerEndpoint -TargetEndpoint 0
+#   Supported Endpoints:
+#   0 :Public
+#   1 :China
+#   2 :Us Government
+#   99 :PreProduction
+
+Set-AzureADKerberosServer -Domain $domain -UserPrincipalName $cloudUserName -DomainCredential $domainCred -SetupCloudTrust
+
+# Set the below GPO in your tenant (do NOT change the values below)
+# GPO Kerberos KDC Proxy - Administrative Templates\System\Kerberos\Specify KDC proxy servers for Kerberos clients
+# KERBEROS.MICROSOFTONLINE.COM	<https login.microsoftonline.com:443:02300709-0c7d-4ec5-b2ab-3512e55fc775/kerberos />   <-- be sure to include the leading "<" and trailing ">" also note that there is a space between "kerberos" and "/" intentionally
+
+# Rotate the key for the account (best practice is to do every 30 days)
+# Set-AzureADKerberosServer -Domain $domain -DomainCredential $domainCred -UserPrincipalName $cloudUserName -SetupCloudTrust -RotateServerKey
+
+# To reset/revert
+# Remove-AzureADKerberosServer -Domain $domain -DomainCredential $domainCred -UserPrincipalName $cloudUserName
