@@ -13,7 +13,6 @@ Date of last revision: 04/18/2025
 
 .ORIGINAL CODE
 Inspired By: The Sysadmin Channel
-Author: Logan Simmons
 
 .NOTES
 2.0  - Initial Release (Rework of original script)
