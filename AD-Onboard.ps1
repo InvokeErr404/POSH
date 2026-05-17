@@ -19,7 +19,7 @@ Inspired By: The Sysadmin Channel
 2.01 - Fixed secure password parameter. Fixed "get user id " for changing usage location. Fixed copying memberships for on-prem and cloud
 2.02 - Updated variables for helpdesk@contoso.com. Fixed password variable output. Added team member to onboarding email
 2.03 - Added command to add user to helpdesk customer group.
-2.04 - Fixed onboard email auth for sending welcome email. Trimmed down email contents and added Cisco  Quick Guide PDF to email.
+2.04 - Fixed onboard email auth for sending welcome email. Trimmed down email contents and added Cisco Quick Guide PDF to email.
 2.1.0 - Added default addresses and #'s for departments (change in AD if desired). Added the copying of source user's M365 groups to new user. Fixed search query for manager and copy source user.
 2.1.1 - Fixed number attribute for user. Changed AD Server to New Domain Controller.
 2.1.2 - Removed duplicate flag in New-ADUser cmdlet.
@@ -32,7 +32,7 @@ Inspired By: The Sysadmin Channel
 2.3.1 - Updated email app password. Old one either is wrong or is obsolete. This prevented emails to personal emails as well as onboarding emails to work ones.
 2.3.2 - Updated script to handle copying M365 groups from source user properly. This wasn't working properly due to my original "for each" loop.
 2.3.3 - Revised Copy Source User section and Manager Set section to error and prompt retry if source user is disabled/inactive.
-2.3.4 - Fixed spelling error for Sheriff Admin OU
+2.3.4 - Fixed spelling error for OU
 2.3.5 - Fixed Remote Routing Adress to be "contoso.mail.onmicrosoft.com" with an added variable in the ADUserParams' array (This is per the required/reccomended MSFT way of doing thing to ensure correct EXO routing).
 #>
 
