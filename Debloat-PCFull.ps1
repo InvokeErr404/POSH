@@ -6,7 +6,7 @@
     cleans up the Start Menu, and uninstalls Dell OEM bloatware.
 
 .NOTES
-    Name: AD-Onboard
+    Name: Debloat-PCFull
     Version: 2.3.5
     Author: InvokeErr404
     Date of last revision: 05/17/2026
