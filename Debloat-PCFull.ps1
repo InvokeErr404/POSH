@@ -1,596 +1,278 @@
+<#
+.SYNOPSIS
+    Windows Debloat and Configuration Script
+.DESCRIPTION
+    This script removes unnecessary Windows features, disables telemetry, 
+    cleans up the Start Menu, and uninstalls Dell OEM bloatware.
+
+.NOTES
+    Name: AD-Onboard
+    Version: 2.3.5
+    Author: InvokeErr404
+    Date of last revision: 05/17/2026
+
+.NOTES
+    2.0  - Initial Release (Rework of original script)
+#>
+
+# Requires Admin privileges
+if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Write-Warning "Please run this script as an Administrator."
+    break
+}
+
+Write-Host "Starting Windows Debloat..." -ForegroundColor Cyan
+
+# ==============================================================================
+# Registry Cleanup (Default User)
+# ==============================================================================
+
+# Suppress errors for reg.exe commands
+$ErrorActionPreference = "SilentlyContinue"
+
+# Remove specific Explorer Namespace and Content Delivery keys
 REG DELETE "HKEY_USERS\defaultuser0\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Desktop\NameSpace\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" /f
 REG DELETE "HKEY_USERS\defaultuser0\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\Subscriptions" /f
 REG DELETE "HKEY_USERS\defaultuser0\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\SuggestedApps" /f
 
+# Hide Copilot, Task View, and disable Taskbar Chat/Widgets for default user
 REG ADD "HKEY_USERS\defaultuser0\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /f /v ShowCopilotButton /t REG_DWORD /d 0
 REG ADD "HKEY_USERS\defaultuser0\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /f /v ShowTaskViewButton /t REG_DWORD /d 0
 REG ADD "HKEY_USERS\defaultuser0\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /f /v TaskbarDa /t REG_DWORD /d 0
 REG ADD "HKEY_USERS\defaultuser0\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /f /v TaskbarMn /t REG_DWORD /d 0
 
+# Restore error action
+$ErrorActionPreference = "Continue"
 
-# These are the registry keys that it will delete.
-$Keys = @(
+# ==============================================================================
+# Remove Unwanted App Handlers and Tasks
+# ==============================================================================
 
-    # Remove Background Tasks
-    "HKCR:\Extensions\ContractId\Windows.BackgroundTasks\PackageId\46928bounde.EclipseManager_2.2.4.51_neutral__a5h4egax66k6y"
-    "HKCR:\Extensions\ContractId\Windows.BackgroundTasks\PackageId\ActiproSoftwareLLC.562882FEEB491_2.6.18.18_neutral__24pqs290vpjk0"
-    "HKCR:\Extensions\ContractId\Windows.BackgroundTasks\PackageId\Microsoft.MicrosoftOfficeHub_17.7909.7600.0_x64__8wekyb3d8bbwe"
-
-    # Windows File
-    "HKCR:\Extensions\ContractId\Windows.File\PackageId\ActiproSoftwareLLC.562882FEEB491_2.6.18.18_neutral__24pqs290vpjk0"
-
-    # Registry keys to delete if they aren't uninstalled by RemoveAppXPackage/RemoveAppXProvisionedPackage
-    "HKCR:\Extensions\ContractId\Windows.Launch\PackageId\46928bounde.EclipseManager_2.2.4.51_neutral__a5h4egax66k6y"
-    "HKCR:\Extensions\ContractId\Windows.Launch\PackageId\ActiproSoftwareLLC.562882FEEB491_2.6.18.18_neutral__24pqs290vpjk0"
-
-    # Scheduled Tasks to delete
-    "HKCR:\Extensions\ContractId\Windows.PreInstalledConfigTask\PackageId\Microsoft.MicrosoftOfficeHub_17.7909.7600.0_x64__8wekyb3d8bbwe"
-
-    # Windows Protocol Keys
-    "HKCR:\Extensions\ContractId\Windows.Protocol\PackageId\ActiproSoftwareLLC.562882FEEB491_2.6.18.18_neutral__24pqs290vpjk0"
-
-    # Windows Share Target
+# Array of specific registry keys linked to bloatware/background tasks
+$KeysToRemove = @(
+    # EclipseManager & ActiproSoftware / Office Hub
+    "HKCR:\Extensions\ContractId\Windows.BackgroundTasks\PackageId\46928bounde.EclipseManager_2.2.4.51_neutral__a5h4egax66k6y",
+    "HKCR:\Extensions\ContractId\Windows.BackgroundTasks\PackageId\ActiproSoftwareLLC.562882FEEB491_2.6.18.18_neutral__24pqs290vpjk0",
+    "HKCR:\Extensions\ContractId\Windows.BackgroundTasks\PackageId\Microsoft.MicrosoftOfficeHub_17.7909.7600.0_x64__8wekyb3d8bbwe",
+    "HKCR:\Extensions\ContractId\Windows.File\PackageId\ActiproSoftwareLLC.562882FEEB491_2.6.18.18_neutral__24pqs290vpjk0",
+    "HKCR:\Extensions\ContractId\Windows.Launch\PackageId\46928bounde.EclipseManager_2.2.4.51_neutral__a5h4egax66k6y",
+    "HKCR:\Extensions\ContractId\Windows.Launch\PackageId\ActiproSoftwareLLC.562882FEEB491_2.6.18.18_neutral__24pqs290vpjk0",
+    "HKCR:\Extensions\ContractId\Windows.PreInstalledConfigTask\PackageId\Microsoft.MicrosoftOfficeHub_17.7909.7600.0_x64__8wekyb3d8bbwe",
+    "HKCR:\Extensions\ContractId\Windows.Protocol\PackageId\ActiproSoftwareLLC.562882FEEB491_2.6.18.18_neutral__24pqs290vpjk0",
     "HKCR:\Extensions\ContractId\Windows.ShareTarget\PackageId\ActiproSoftwareLLC.562882FEEB491_2.6.18.18_neutral__24pqs290vpjk0"
 )
 
-# This writes the output of each key it is removing and also removes the keys listed above.
-ForEach ($Key in $Keys) {
-    Remove-Item $Key -Recurse
+# Iterate and safely remove keys
+ForEach ($Key in $KeysToRemove) {
+    if (Test-Path $Key) { Remove-Item $Key -Recurse -Force }
 }
 
-# Disables Windows Feedback Experience
-$Advertising = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo"
-If (!(Test-Path $Advertising)) {
-    New-Item $Advertising
-}
-If (Test-Path $Advertising) {
-    Set-ItemProperty $Advertising Enabled -Value 0
+# ==============================================================================
+# System-Wide Telemetry and Search Configuration
+# ==============================================================================
+
+# Helper function to easily set registry values, creating the path if it doesn't exist
+Function Set-RegValue ($Path, $Name, $Value, $Type = "DWord") {
+    if (!(Test-Path $Path)) { New-Item -Path $Path -Force | Out-Null }
+    Set-ItemProperty -Path $Path -Name $Name -Value $Value -Type $Type -Force
 }
 
-# Stops Cortana from being used as part of your Windows Search Function
-$Search = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"
-If (!(Test-Path $Search)) {
-    New-Item $Search
-}
-If (Test-Path $Search) {
-    Set-ItemProperty $Search AllowCortana -Value 0
+# Advertising, Cortana, Web Search
+Set-RegValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo" "Enabled" 0
+Set-RegValue "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" "AllowCortana" 0
+Set-RegValue "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" "DisableWebSearch" 1
+Set-RegValue "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" "EnableDynamicContentInWSB" 0 # Disable search games
+
+# Windows Feeds / News and Interests
+Set-RegValue "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds" "EnableFeeds" 0
+Set-RegValue "HKLM:\SOFTWARE\Policies\Microsoft\Dsh" "AllowNewsAndInterests" 0
+
+# Consumer Features and Wi-Fi Sense
+Set-RegValue "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" "DisableWindowsConsumerFeatures" 1
+Set-RegValue "HKLM:\SOFTWARE\Microsoft\PolicyManager\default\WiFi\AllowWiFiHotSpotReporting" "Value" 0
+Set-RegValue "HKLM:\SOFTWARE\Microsoft\PolicyManager\default\WiFi\AllowAutoConnectToWiFiSenseHotspots" "Value" 0
+Set-RegValue "HKLM:\SOFTWARE\Microsoft\WcmSvc\wifinetworkmanager\config" "AutoConnectAllowedOEM" 0
+
+# Disable OOBE Screens (Privacy, Voice, EULA, Animation)
+$OobePath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE"
+Set-RegValue $OobePath "DisablePrivacyExperience" 1
+Set-RegValue $OobePath "DisableVoice" 1
+Set-RegValue $OobePath "PrivacyConsentStatus" 1
+Set-RegValue $OobePath "Protectyourpc" 3
+Set-RegValue $OobePath "HideEULAPage" 1
+Set-RegValue "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System" "EnableFirstLogonAnimation" 1
+
+# Remove 3D Objects from "My Computer"
+$ObjPath = "SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\MyComputer\NameSpace\{0DB7E03F-FC29-4DC6-9020-FF41B59E513A}"
+if (Test-Path "HKLM:\$ObjPath") { Remove-Item "HKLM:\$ObjPath" -Recurse -Force }
+if (Test-Path "HKLM:\WOW6432Node\$ObjPath") { Remove-Item "HKLM:\WOW6432Node\$ObjPath" -Recurse -Force }
+
+# Disable Unnecessary Scheduled Tasks
+$TasksToDisable = @("XblGameSaveTaskLogon", "XblGameSaveTask", "Consolidator", "UsbCeip", "DmClient", "DmClientOnScenarioDownload")
+ForEach ($Task in $TasksToDisable) {
+    Get-ScheduledTask -TaskName $Task -ErrorAction SilentlyContinue | Disable-ScheduledTask -ErrorAction SilentlyContinue
 }
 
-# Disables Web Search in Start Menu
-$WebSearch = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"
-If (!(Test-Path $WebSearch)) {
-    New-Item $WebSearch
-}
-Set-ItemProperty $WebSearch DisableWebSearch -Value 1
+# ==============================================================================
+# Default User Profile Tweaks (via loading C:\Users\Default\NTUser.dat as HKU\DefaultUser0)
+# ==============================================================================
 
-#----------------------------------#
 $DefaultUserHivePath = "C:\Users\Default\NTUSER.DAT"
-reg load "HKU\DefaultUser0" $HivePath
-# Deeper Debloat
-# Disable Bing Search
-    $WebSearch = "Registry::HKEY_USERS\defaultuser0\SOFTWARE\Microsoft\Windows\CurrentVersion\Search"
-    If (!(Test-Path $WebSearch)) {
-        New-Item $WebSearch
-    }
-    Set-ItemProperty $WebSearch BingSearchEnabled -Value 0
+reg load "HKU\DefaultUser0" $DefaultUserHivePath | Out-Null
 
-Set-ItemProperty "HKEY_USERS\defaultuser0\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" BingSearchEnabled -Value 0
+# Disable Bing Search & Feedback Experience Data
+Set-RegValue "Registry::HKEY_USERS\defaultuser0\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" "BingSearchEnabled" 0
+Set-RegValue "Registry::HKEY_USERS\defaultuser0\Software\Microsoft\Siuf\Rules" "PeriodInNanoSeconds" 0
 
-# Stops the Windows Feedback Experience from sending anonymous data
-$Period = "HKEY_USERS\defaultuser0\Software\Microsoft\Siuf\Rules"
-If (!(Test-Path $Period)) {
-    New-Item $Period
-}
-Set-ItemProperty $Period PeriodInNanoSeconds -Value 0
+# Stop Pre-installed OEM Apps and Content Delivery
+$ContentMgr = "Registry::HKEY_USERS\defaultuser0\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
+Set-RegValue $ContentMgr "ContentDeliveryAllowed" 0
+Set-RegValue $ContentMgr "OemPreInstalledAppsEnabled" 0
+Set-RegValue $ContentMgr "PreInstalledAppsEnabled" 0
+Set-RegValue $ContentMgr "PreInstalledAppsEverEnabled" 0
+Set-RegValue $ContentMgr "SilentInstalledAppsEnabled" 0
+Set-RegValue $ContentMgr "SystemPaneSuggestionsEnabled" 0
+Set-RegValue $ContentMgr "RotatingLockScreenOverlayEnabled" 0 # Spotlight off
+Set-RegValue $ContentMgr "RotatingLockScreenEnabled" 0        # Spotlight off
 
-# Disables games from showing in Search bar
-$registryPath = "HKLM:\ SOFTWARE\Policies\Microsoft\Windows\Windows Search"
-If (!(Test-Path $registryPath)) {
-    New-Item $registryPath
-}
-Set-ItemProperty $registryPath EnableDynamicContentInWSB -Value 0
+# Holographic First Run & Live Tiles
+Set-RegValue "Registry::HKEY_USERS\defaultuser0\Software\Microsoft\Windows\CurrentVersion\Holographic" "FirstRunSucceeded" 0
+Set-RegValue "Registry::HKEY_USERS\defaultuser0\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\PushNotifications" "NoTileApplicationNotification" 1
 
-# Prevents bloatware applications from returning and removes Start Menu suggestions
-$registryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent"
-$registryOEM = "HKEY_USERS\defaultuser0\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
-If (!(Test-Path $registryPath)) {
-    New-Item $registryPath
-}
-Set-ItemProperty $registryPath DisableWindowsConsumerFeatures -Value 1
+# Desktop/Taskbar visual cleanups (People Band, Learn about this picture, Spotlight Desktop)
+Set-RegValue "Registry::HKEY_USERS\defaultuser0\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People" "PeopleBand" 0
+Set-RegValue "Registry::HKEY_USERS\defaultuser0\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel" "{2cc5ca98-6485-489a-920e-b3e88a6ccce3}" 1
+Set-RegValue "Registry::HKEY_USERS\defaultuser0\Software\Policies\Microsoft\Windows\CloudContent" "DisableSpotlightCollectionOnDesktop" 1
+Set-RegValue "Registry::HKEY_USERS\defaultuser0\Software\Policies\Microsoft\Windows\CloudContent" "DisableWindowsSpotlightFeatures" 1
 
-If (!(Test-Path $registryOEM)) {
-    New-Item $registryOEM
-}
-Set-ItemProperty $registryOEM  ContentDeliveryAllowed -Value 0
-Set-ItemProperty $registryOEM  OemPreInstalledAppsEnabled -Value 0
-Set-ItemProperty $registryOEM  PreInstalledAppsEnabled -Value 0
-Set-ItemProperty $registryOEM  PreInstalledAppsEverEnabled -Value 0
-Set-ItemProperty $registryOEM  SilentInstalledAppsEnabled -Value 0
-Set-ItemProperty $registryOEM  SystemPaneSuggestionsEnabled -Value 0
+# Unload Default User Profile
+reg unload "HKU\DefaultUser0" | Out-Null
 
-# Preping mixed Reality Portal for removal
-$Holo = "HKEY_USERS\defaultuser0\Software\Microsoft\Windows\CurrentVersion\Holographic"
-If (Test-Path $Holo) {
-    Set-ItemProperty $Holo  FirstRunSucceeded -Value 0
-}
+# ==============================================================================
+# Start Layout Modification
+# ==============================================================================
 
-# Disables Wi-fi Sense
-$WifiSense1 = "HKLM:\SOFTWARE\Microsoft\PolicyManager\default\WiFi\AllowWiFiHotSpotReporting"
-$WifiSense2 = "HKLM:\SOFTWARE\Microsoft\PolicyManager\default\WiFi\AllowAutoConnectToWiFiSenseHotspots"
-$WifiSense3 = "HKLM:\SOFTWARE\Microsoft\WcmSvc\wifinetworkmanager\config"
-If (!(Test-Path $WifiSense1)) {
-    New-Item $WifiSense1
-}
-Set-ItemProperty $WifiSense1  Value -Value 0
-If (!(Test-Path $WifiSense2)) {
-    New-Item $WifiSense2
-}
-Set-ItemProperty $WifiSense2  Value -Value 0
-Set-ItemProperty $WifiSense3  AutoConnectAllowedOEM -Value 0
+# Write a blank start layout XML template
+$XmlPath = "C:\Windows\StartLayout.xml"
+@"
+<LayoutModificationTemplate xmlns:defaultlayout="http://schemas.microsoft.com/Start/2014/FullDefaultLayout" xmlns:start="http://schemas.microsoft.com/Start/2014/StartLayout" Version="1" xmlns="http://schemas.microsoft.com/Start/2014/LayoutModification">
+ <LayoutOptions StartTileGroupCellWidth="6" />
+ <DefaultLayoutOverride>
+ <StartLayoutCollection>
+ <defaultlayout:StartLayout GroupCellWidth="6" />
+ </StartLayoutCollection>
+ </DefaultLayoutOverride>
+</LayoutModificationTemplate>
+"@ | Out-File $XmlPath -Encoding UTF8 -Force
 
-# Disables live tiles
-$Live = "HKEY_USERS\defaultuser0\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\PushNotifications"
-If (!(Test-Path $Live)) {
-    New-Item $Live
-}
-Set-ItemProperty $Live  NoTileApplicationNotification -Value 1
+# Windows 11 Start Menu Cleanup
+$OsVersion = (Get-CimInstance Win32_OperatingSystem).Caption
+if ($OsVersion -like "*Windows 11*") {
+    $Win11LayoutPath = "C:\Users\Default\AppData\Local\Microsoft\Windows\Shell\LayoutModification.xml"
+    if (Test-Path $Win11LayoutPath) { Remove-Item $Win11LayoutPath -Force }
 
-# Disables People icon on Taskbar
-$People = 'HKEY_USERS\defaultuser0\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People'
-If (Test-Path $People) {
-    Set-ItemProperty $People -Name PeopleBand -Value 0
-}
-
-# Removes 3D Objects from the 'My Computer' submenu in explorer
-$Objects32 = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\MyComputer\NameSpace\{0DB7E03F-FC29-4DC6-9020-FF41B59E513A}"
-$Objects64 = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Explorer\MyComputer\NameSpace\{0DB7E03F-FC29-4DC6-9020-FF41B59E513A}"
-If (Test-Path $Objects32) {
-    Remove-Item $Objects32 -Recurse
-}
-If (Test-Path $Objects64) {
-    Remove-Item $Objects64 -Recurse
-}
-
-# Removes the Microsoft Feeds from displaying
-$registryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds"
-$Name = "EnableFeeds"
-$value = "0"
-
-if (!(Test-Path $registryPath)) {
-    New-Item -Path $registryPath -Force | Out-Null
-    New-ItemProperty -Path $registryPath -Name $name -Value $value -PropertyType DWORD -Force | Out-Null
-}
-
-else {
-    New-ItemProperty -Path $registryPath -Name $name -Value $value -PropertyType DWORD -Force | Out-Null
-}
-
-# Disable unwanted OOBE screens for Device Prep
-$registryPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE"
-$registryPath2 = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System"
-$Name1 = "DisablePrivacyExperience"
-$Name2 = "DisableVoice"
-$Name3 = "PrivacyConsentStatus"
-$Name4 = "Protectyourpc"
-$Name5 = "HideEULAPage"
-$Name6 = "EnableFirstLogonAnimation"
-New-ItemProperty -Path $registryPath -Name $name1 -Value 1 -PropertyType DWord -Force
-New-ItemProperty -Path $registryPath -Name $name2 -Value 1 -PropertyType DWord -Force
-New-ItemProperty -Path $registryPath -Name $name3 -Value 1 -PropertyType DWord -Force
-New-ItemProperty -Path $registryPath -Name $name4 -Value 3 -PropertyType DWord -Force
-New-ItemProperty -Path $registryPath -Name $name5 -Value 1 -PropertyType DWord -Force
-New-ItemProperty -Path $registryPath2 -Name $name6 -Value 1 -PropertyType DWord -Force
-
-# Turn off Learn about this picture
-$picture = 'HKEY_USERS\defaultuser0\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel'
-If (Test-Path $picture) {
-    Set-ItemProperty $picture -Name "{2cc5ca98-6485-489a-920e-b3e88a6ccce3}" -Value 1
-}
-
-# Disabling consumer experience
-$consumer = 'HKLM:\\SOFTWARE\Policies\Microsoft\Windows\CloudContent'
-If (Test-Path $consumer) {
-    Set-ItemProperty $consumer -Name "DisableWindowsConsumerFeatures" -Value 1
-}
-
-# Disable Windows Spotlight LockScreen
-$spotlight = 'HKEY_USERS\defaultuser0\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'
-If (Test-Path $spotlight) {
-    Set-ItemProperty $spotlight -Name "RotatingLockScreenOverlayEnabled" -Value 0
-    Set-ItemProperty $spotlight -Name "RotatingLockScreenEnabled" -Value 0
-}
-
-# Disable Windows Spotlight Background
-$spotlight = 'HKEY_USERS\defaultuser0\Software\Policies\Microsoft\Windows\CloudContent'
-If (Test-Path $spotlight) {
-    Set-ItemProperty $spotlight -Name "DisableSpotlightCollectionOnDesktop" -Value 1
-    Set-ItemProperty $spotlight -Name "DisableWindowsSpotlightFeatures" -Value 1
-}
-
-# Disables scheduled tasks that are considered unnecessary
-$task1 = Get-ScheduledTask -TaskName XblGameSaveTaskLogon -ErrorAction SilentlyContinue
-if ($null -ne $task1) {
-    Get-ScheduledTask  XblGameSaveTaskLogon | Disable-ScheduledTask -ErrorAction SilentlyContinue
-}
-$task2 = Get-ScheduledTask -TaskName XblGameSaveTask -ErrorAction SilentlyContinue
-if ($null -ne $task2) {
-    Get-ScheduledTask  XblGameSaveTask | Disable-ScheduledTask -ErrorAction SilentlyContinue
-}
-$task3 = Get-ScheduledTask -TaskName Consolidator -ErrorAction SilentlyContinue
-if ($null -ne $task3) {
-    Get-ScheduledTask  Consolidator | Disable-ScheduledTask -ErrorAction SilentlyContinue
-}
-$task4 = Get-ScheduledTask -TaskName UsbCeip -ErrorAction SilentlyContinue
-if ($null -ne $task4) {
-    Get-ScheduledTask  UsbCeip | Disable-ScheduledTask -ErrorAction SilentlyContinue
-}
-$task5 = Get-ScheduledTask -TaskName DmClient -ErrorAction SilentlyContinue
-if ($null -ne $task5) {
-    Get-ScheduledTask  DmClient | Disable-ScheduledTask -ErrorAction SilentlyContinue
-}
-$task6 = Get-ScheduledTask -TaskName DmClientOnScenarioDownload -ErrorAction SilentlyContinue
-if ($null -ne $task6) {
-    Get-ScheduledTask  DmClientOnScenarioDownload | Disable-ScheduledTask -ErrorAction SilentlyContinue
-}
-
-# Disable Feeds
-$registryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Dsh"
-If (!(Test-Path $registryPath)) {
-    New-Item $registryPath
-}
-Set-ItemProperty $registryPath "AllowNewsAndInterests" -Value 0
-
-# Delete layout file if it already exists
-# Creates the blank start layout file
-    Write-Output "<LayoutModificationTemplate xmlns:defaultlayout=""http://schemas.microsoft.com/Start/2014/FullDefaultLayout"" xmlns:start=""http://schemas.microsoft.com/Start/2014/StartLayout"" Version=""1"" xmlns=""http://schemas.microsoft.com/Start/2014/LayoutModification"">" >> C:\Windows\StartLayout.xml
-
-    Write-Output " <LayoutOptions StartTileGroupCellWidth=""6"" />" >> C:\Windows\StartLayout.xml
-
-    Write-Output " <DefaultLayoutOverride>" >> C:\Windows\StartLayout.xml
-
-    Write-Output " <StartLayoutCollection>" >> C:\Windows\StartLayout.xml
-
-    Write-Output " <defaultlayout:StartLayout GroupCellWidth=""6"" />" >> C:\Windows\StartLayout.xml
-
-    Write-Output " </StartLayoutCollection>" >> C:\Windows\StartLayout.xml
-
-    Write-Output " </DefaultLayoutOverride>" >> C:\Windows\StartLayout.xml
-
-    Write-Output "</LayoutModificationTemplate>" >> C:\Windows\StartLayout.xml
-
-if ($version -like "*Windows 11*") {
-    If (Test-Path "C:\Users\Default\AppData\Local\Microsoft\Windows\Shell\LayoutModification.xml")
-    {
-
-        Remove-Item "C:\Users\Default\AppData\Local\Microsoft\Windows\Shell\LayoutModification.xml"
-
-    }
-
-    $blankjson = @'
+    $BlankJson = @'
 {
     "pinnedList": [
-{ "desktopAppId": "MSEdge" },
-{ "packagedAppId": "Microsoft.WindowsStore_8wekyb3d8bbwe!App" },
-{ "packagedAppId": "desktopAppId":"Microsoft.Windows.Explorer" }
+        { "desktopAppId": "MSEdge" },
+        { "packagedAppId": "Microsoft.WindowsStore_8wekyb3d8bbwe!App" },
+        { "desktopAppId": "Microsoft.Windows.Explorer" }
     ]
 }
 '@
+    $BlankJson | Out-File $Win11LayoutPath -Encoding UTF8 -Force
 
-    $blankjson | Out-File "C:\Users\Default\AppData\Local\Microsoft\Windows\Shell\LayoutModification.xml" -Encoding utf8 -Force
-    $userpath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList"
-    $userprofiles = Get-ChildItem $userpath | ForEach-Object { Get-ItemProperty $_.PSPath }
+    # Download debloated bin file if a non-admin user exists
+    $Profiles = Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList" | ForEach-Object { Get-ItemProperty $_.PSPath }
+    $NonAdminLoggedOn = ($Profiles | Where-Object { $_.PSChildName -notmatch '^(\.DEFAULT|S-1-5-1[89]|S-1-5-20|S-1-5-21-\d+-\d+-\d+-500)$' }).Count -gt 0
 
-    $nonAdminLoggedOn = $false
-    foreach ($user in $userprofiles) {
-        if ($user.PSChildName -ne '.DEFAULT' -and $user.PSChildName -ne 'S-1-5-18' -and $user.PSChildName -ne 'S-1-5-19' -and $user.PSChildName -ne 'S-1-5-20' -and $user.PSChildName -notmatch 'S-1-5-21-\d+-\d+-\d+-500') {
-            $nonAdminLoggedOn = $true
-            break
-        }
-    }
-
-    if ($nonAdminLoggedOn -eq $false) {
-        MkDir -Path "C:\Users\Default\AppData\Local\Packages\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\LocalState" -Force -ErrorAction SilentlyContinue | Out-Null
-        $starturl = "https://github.com/andrew-s-taylor/public/raw/main/De-Bloat/start2.bin"
-        invoke-webrequest -uri $starturl -outfile "C:\Users\Default\AppData\Local\Packages\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\LocalState\Start2.bin"
+    if ($NonAdminLoggedOn) {
+        $LocalStateDir = "C:\Users\Default\AppData\Local\Packages\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\LocalState"
+        New-Item -ItemType Directory -Force -Path $LocalStateDir -ErrorAction SilentlyContinue | Out-Null
+        Invoke-WebRequest -Uri "https://github.com/andrew-s-taylor/public/raw/main/De-Bloat/start2.bin" -OutFile "$LocalStateDir\Start2.bin"
     }
 }
 
-#Unload defaultuser0 user profile
-reg unload HKU\DefaultUser0
-<#
-#----------------------------------#
+# ==============================================================================
+# Dell AppX and Program Cleanup
+# ==============================================================================
 
-# Getting Uninstall Strings For Debloat
+# Note: The original script called 'UninstallAppFull' which is not native to PS. 
+# Assuming it is an imported function in your environment.
 
-# Search for 32-bit versions and list them
-$allstring = @()
-$path1 = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
-#Loop Through the apps if name has Adobe and NOT reader
-$32apps = Get-ChildItem -Path $path1 | Get-ItemProperty | Select-Object -Property DisplayName, UninstallString
+$AppsToIgnore = @() # Define to prevent null errors
+$DellPrograms = @(
+    "Dell Optimizer", "Dell Power Manager", "DellOptimizerUI", "Dell SupportAssist OS Recovery",
+    "Dell SupportAssist", "Dell Optimizer Service", "Dell Optimizer Core", "DellInc.PartnerPromo",
+    "DellInc.DellOptimizer", "DellInc.DellCommandUpdate", "DellInc.DellPowerManager",
+    "DellInc.DellDigitalDelivery", "DellInc.DellSupportAssistforPCs", "Dell Command | Update",
+    "Dell Command | Update for Windows Universal", "Dell Command | Update for Windows 10",
+    "Dell Command | Power Manager", "Dell Digital Delivery Service", "Dell Digital Delivery",
+    "Dell Peripheral Manager", "Dell Power Manager Service", "Dell SupportAssist Remediation",
+    "SupportAssist Recovery Assistant", "Dell SupportAssist OS Recovery Plugin for Dell Update",
+    "Dell SupportAssistAgent", "Dell Update - SupportAssist Update Plugin", "Dell Core Services",
+    "Dell Pair", "Dell Display Manager 2.0", "Dell Display Manager 2.1", "Dell Display Manager 2.2"
+) | Where-Object { $_ -notin $AppsToIgnore } | Select-Object -Unique
 
-foreach ($32app in $32apps) {
-    #Get uninstall string
-    $string1 = $32app.uninstallstring
-    #Check if it's an MSI install
-    if ($string1 -match "^msiexec*") {
-        #MSI install, replace the I with an X and make it quiet
-        $string2 = $string1 + " /quiet /norestart"
-        $string2 = $string2 -replace "/I", "/X "
-        #Create custom object with name and string
-        $allstring += New-Object -TypeName PSObject -Property @{
-            Name   = $32app.DisplayName
-            String = $string2
-        }
+# Remove Appx Packages
+foreach ($App in $DellPrograms) {
+    if (Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*$App*") {
+        Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*$App*" | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
     }
-    else {
-        #Exe installer, run straight path
-        $string2 = $string1
-        $allstring += New-Object -TypeName PSObject -Property @{
-            Name   = $32app.DisplayName
-            String = $string2
-        }
+    if (Get-AppxPackage -AllUsers -Name "*$App*") {
+        Get-AppxPackage -AllUsers -Name "*$App*" | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
     }
-
+    
+    # Try calling custom function if it exists
+    if (Get-Command UninstallAppFull -ErrorAction SilentlyContinue) {
+        UninstallAppFull -appName $App
+    }
+    
+    # WMI/CIM Cleanup
+    Get-CimInstance -Query "SELECT * FROM Win32_Product WHERE Name = '$App'" | Invoke-CimMethod -MethodName Uninstall -ErrorAction SilentlyContinue
 }
 
-# Search for 64-bit versions and list them
+# Execute Silent Uninstalls from Registry Strings
+$UninstallKeysPath = @(
+    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*",
+    "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+)
 
-$path2 = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"
-#Loop Through the apps if name has Adobe and NOT reader
-$64apps = Get-ChildItem -Path $path2 | Get-ItemProperty | Select-Object -Property DisplayName, UninstallString
-
-foreach ($64app in $64apps) {
-    #Get uninstall string
-    $string1 = $64app.uninstallstring
-    #Check if it's an MSI install
-    if ($string1 -match "^msiexec*") {
-        #MSI install, replace the I with an X and make it quiet
-        $string2 = $string1 + " /quiet /norestart"
-        $string2 = $string2 -replace "/I", "/X "
-        #Uninstall with string2 params
-        $allstring += New-Object -TypeName PSObject -Property @{
-            Name   = $64app.DisplayName
-            String = $string2
-        }
-    }
-    else {
-        #Exe installer, run straight path
-        $string2 = $string1
-        $allstring += New-Object -TypeName PSObject -Property @{
-            Name   = $64app.DisplayName
-            String = $string2
-        }
-    }
-
-}
-
-# Search for 32-bit versions and list them
-$path1 = "HKEY_USERS\defaultuser0\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
-##Check if path exists
-if (Test-Path $path1) {
-    #Loop Through the apps if name has Adobe and NOT reader
-    $32apps = Get-ChildItem -Path $path1 | Get-ItemProperty | Select-Object -Property DisplayName, UninstallString
-
-    foreach ($32app in $32apps) {
-        #Get uninstall string
-        $string1 = $32app.uninstallstring
-        #Check if it's an MSI install
-        if ($string1 -match "^msiexec*") {
-            #MSI install, replace the I with an X and make it quiet
-            $string2 = $string1 + " /quiet /norestart"
-            $string2 = $string2 -replace "/I", "/X "
-            #Create custom object with name and string
-            $allstring += New-Object -TypeName PSObject -Property @{
-                Name   = $32app.DisplayName
-                String = $string2
-            }
-        }
-        else {
-            #Exe installer, run straight path
-            $string2 = $string1
-            $allstring += New-Object -TypeName PSObject -Property @{
-                Name   = $32app.DisplayName
-                String = $string2
-            }
-        }
+$TargetApps = @("Dell*Optimizer*", "Dell SupportAssist Remediation")
+ForEach ($Target in $TargetApps) {
+    $UninstallStrings = Get-ItemProperty $UninstallKeysPath -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like $Target } | Select-Object -ExpandProperty UninstallString -ErrorAction SilentlyContinue
+    ForEach ($String in $UninstallStrings) {
+        if ($String) { cmd.exe /c "$String /quiet /norestart /qn" }
     }
 }
 
-# Search for 64-bit versions and list them
+# Direct Executable Uninstalls for specific Dell Paths
+$DirectUninstalls = @(
+    "C:\Program Files\Dell\Dell Peripheral Manager\Uninstall.exe",
+    "C:\Program Files\Dell\Dell Display Manager 2.0\uninst.exe",
+    "C:\Program Files\Dell\Dell Pair\Uninstall.exe"
+)
 
-$path2 = "HKEY_USERS\defaultuser0\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"
-#Loop Through the apps if name has Adobe and NOT reader
-$64apps = Get-ChildItem -Path $path2 | Get-ItemProperty | Select-Object -Property DisplayName, UninstallString
-
-foreach ($64app in $64apps) {
-    #Get uninstall string
-    $string1 = $64app.uninstallstring
-    #Check if it's an MSI install
-    if ($string1 -match "^msiexec*") {
-        #MSI install, replace the I with an X and make it quiet
-        $string2 = $string1 + " /quiet /norestart"
-        $string2 = $string2 -replace "/I", "/X "
-        #Uninstall with string2 params
-        $allstring += New-Object -TypeName PSObject -Property @{
-            Name   = $64app.DisplayName
-            String = $string2
-        }
-    }
-    else {
-        #Exe installer, run straight path
-        $string2 = $string1
-        $allstring += New-Object -TypeName PSObject -Property @{
-            Name   = $64app.DisplayName
-            String = $string2
-        }
-    }
-
-}
-#>
-
-############################################################################################################
-#                                        Remove AppX Packages                                              #
-#                                                                                                          #
-############################################################################################################
-
-# Dell Application Debloat
-
-$UninstallPrograms = @(
-        "Dell Optimizer"
-        "Dell Power Manager"
-        "DellOptimizerUI"
-        "Dell SupportAssist OS Recovery"
-        "Dell SupportAssist"
-        "Dell Optimizer Service"
-        "Dell Optimizer Core"
-        "DellInc.PartnerPromo"
-        "DellInc.DellOptimizer"
-        "DellInc.DellCommandUpdate"
-        "DellInc.DellPowerManager"
-        "DellInc.DellDigitalDelivery"
-        "DellInc.DellSupportAssistforPCs"
-        "DellInc.PartnerPromo"
-        "Dell Command | Update"
-        "Dell Command | Update for Windows Universal"
-        "Dell Command | Update for Windows 10"
-        "Dell Command | Power Manager"
-        "Dell Digital Delivery Service"
-        "Dell Digital Delivery"
-        "Dell Peripheral Manager"
-        "Dell Power Manager Service"
-        "Dell SupportAssist Remediation"
-        "SupportAssist Recovery Assistant"
-        "Dell SupportAssist OS Recovery Plugin for Dell Update"
-        "Dell SupportAssistAgent"
-        "Dell Update - SupportAssist Update Plugin"
-        "Dell Core Services"
-        "Dell Pair"
-        "Dell Display Manager 2.0"
-        "Dell Display Manager 2.1"
-        "Dell Display Manager 2.2"
-        "Dell SupportAssist Remediation"
-        "Dell Update - SupportAssist Update Plugin"
-        "DellInc.PartnerPromo"
-    )
-
-    $UninstallPrograms = $UninstallPrograms | Where-Object { $appstoignore -notcontains $_ }
-
-
-    foreach ($app in $UninstallPrograms) {
-
-        if (Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like $app -ErrorAction SilentlyContinue) {
-            Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like $app | Remove-AppxProvisionedPackage -Online
-            write-output "Removed provisioned package for $app."
-        }
-        else {
-            continue
-        }
-
-        if (Get-AppxPackage -allusers -Name $app -ErrorAction SilentlyContinue) {
-            Get-AppxPackage -allusers -Name $app | Remove-AppxPackage -AllUsers
-            write-output "Removed provisioned package for $app."
-        }
-        else {
-            continue
-        }
-
-        UninstallAppFull -appName $app
-    }
-
-    # Belt and braces, remove via CIM too
-    foreach ($program in $UninstallPrograms) {
-        write-output "Removing $program"
-        Get-CimInstance -Query "SELECT * FROM Win32_Product WHERE name = '$program'" | Invoke-CimMethod -MethodName Uninstall
-    }
-
-    # Dell Optimizer
-    $dellSA = Get-ChildItem -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall, HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall | Get-ItemProperty | Where-Object { $_.DisplayName -like "Dell*Optimizer*Core" } | Select-Object -Property UninstallString
-
-    ForEach ($sa in $dellSA) {
-        If ($sa.UninstallString) {
-            try {
-                cmd.exe /c $sa.UninstallString -silent
-            }
-            catch {
-                Write-Warning "Failed to uninstall Dell Optimizer"
-                continue
-            }
-        }
-    }
-
-
-# Support Assist and Support Assit OS Plugin
-$SAVer = Get-ChildItem -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall, HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall  |
-    Get-ItemProperty |
-        Where-Object {$_.DisplayName -match "Dell SupportAssist Remediation" } |
-            Select-Object -Property DisplayVersion, UninstallString, PSChildName
-
-ForEach ($ver in $SAVer) {
-
-    If ($ver.UninstallString) {
-
-        $uninst = $ver.UninstallString
-        & cmd /c $uninst /quiet /norestart
-
-    }
+ForEach ($Exe in $DirectUninstalls) {
+    if (Test-Path $Exe) { cmd /c "`"$Exe`" /S" }
 }
 
-# Dell Optimizer
-$TestDO = Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Dell Optimizer"
-if ($TestDO -eq $true) {
-$SAVer = Get-ChildItem -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall, HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall  |
-    Get-ItemProperty |
-        Where-Object {$_.DisplayName -match "Dell Optimizer" } | 
-            Select-Object -Property DisplayVersion, UninstallString, PSChildName
-
-ForEach ($ver in $SAVer) {
-
-    If ($ver.UninstallString) {
-
-        $uninst = $ver.UninstallString
-        & cmd /c $uninst /quiet /qn
-
-    }
-}
+$InstallShieldPaths = @(
+    "C:\Program Files (x86)\InstallShield Installation Information\{286A9ADE-A581-43E8-AA85-6F5D58C7DC88}\DellOptimizer.exe /remove /silent",
+    "C:\Program Files (x86)\InstallShield Installation Information\{2F3E37A4-8F48-465A-813B-1F2964DBEB6A}\setup.exe /s /uninst"
+)
+ForEach ($CmdStr in $InstallShieldPaths) {
+    $Path = $CmdStr.Split(" ")[0]
+    if (Test-Path $Path) { cmd /c "`"$CmdStr`"" }
 }
 
-# Dell Peripheral Manager
-$TestDPM = Test-Path "C:\Program Files\Dell\Dell Peripheral Manager\"
-if ($TestDPM -eq $true) {
-cmd /c '"C:\Program Files\Dell\Dell Peripheral Manager\Uninstall.exe" /S'
+$PackageCachePaths = @(
+    "C:\ProgramData\Package Cache\{cff56899-3afb-4fe1-aeec-a0474836d1cd}\DellUpdateSupportAssistPlugin.exe /uninstall /quiet",
+    "C:\ProgramData\Package Cache\{ab3f7261-beee-49b8-b31a-27dd1dfd122d}\DellUpdateSupportAssistPlugin.exe /uninstall /quiet"
+)
+ForEach ($CmdStr in $PackageCachePaths) {
+    $Path = $CmdStr.Split(" ")[0]
+    if (Test-Path $Path) { cmd /c "`"$CmdStr`"" }
 }
 
-# Dell Display Manager 2.0
-$TestDDM = Test-Path "C:\Program Files\Dell\Dell Display Manager 2.0\"
-if ($TestDDM -eq $true) {
-cmd /c '"C:\Program Files\Dell\Dell Display Manager 2.0\uninst.exe" /S'
-}
-
-# Dell Optimizer Service
-$TestDOS = Test-Path "C:\Program Files (x86)\InstallShield Installation Information\{286A9ADE-A581-43E8-AA85-6F5D58C7DC88}"
-if ($TestDOS -eq $true) {
-cmd /c '"C:\Program Files (x86)\InstallShield Installation Information\{286A9ADE-A581-43E8-AA85-6F5D58C7DC88}\DellOptimizer.exe" /remove /silent'
-}
-
-# Dell Support Assist
-$TestDAS = Test-Path "C:\ProgramData\Package Cache\{cff56899-3afb-4fe1-aeec-a0474836d1cd}"
-$TestDAS2 = Test-Path "C:\ProgramData\Package Cache\{ab3f7261-beee-49b8-b31a-27dd1dfd122d}"
-if ($TestDAS -eq $true) {
-cmd /c '"C:\ProgramData\Package Cache\{cff56899-3afb-4fe1-aeec-a0474836d1cd}\DellUpdateSupportAssistPlugin.exe" /uninstall /quiet'
-}
-elseif ($TestDAS2 -eq $true) {
-cmd /c '"C:\ProgramData\Package Cache\{ab3f7261-beee-49b8-b31a-27dd1dfd122d}\DellUpdateSupportAssistPlugin.exe" /uninstall /quiet'
-}
-
-# Dell Watchdog Timer
-$TestWDT = Test-Path "C:\Program Files (x86)\InstallShield Installation Information\{2F3E37A4-8F48-465A-813B-1F2964DBEB6A}"
-if ($TestWDT -eq $true) {
-cmd /c '"C:\Program Files (x86)\InstallShield Installation Information\{2F3E37A4-8F48-465A-813B-1F2964DBEB6A}\setup.exe" /s /uninst'
-}
-
-# Dell Pair
-$TestDP = Test-Path "C:\Program Files\Dell\Dell Pair\Uninstall.exe"
-if ($TestDP -eq $true) {
-cmd /c '"C:\Program Files\Dell\Dell Pair\Uninstall.exe" /S'
-
-}
+Write-Host "Debloat Complete." -ForegroundColor Green
