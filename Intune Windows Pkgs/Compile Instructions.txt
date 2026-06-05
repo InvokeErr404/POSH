@@ -1,0 +1,6 @@
+## Download the Microsoft Win32 Content Prep Tool: https://go.microsoft.com/fwlink/?linkid=2065730 ##
+
+# In a cmd or posh admin console, go to the directory that your IntuneWinAppUtil.exe is located and use the command below to compile your installer into an intunewin package
+# Make sure your msi/exe, install, and uninstall script are all in the same folder. It will compile ALL contents located in the -c directory below into one package
+
+.\IntuneWinAppUtil.exe -c "PathToFolderWithSetupFiles" -s "PathToInstallPS1" -o "PathToOutputFolder"
