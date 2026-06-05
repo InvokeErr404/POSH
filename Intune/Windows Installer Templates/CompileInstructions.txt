@@ -1,0 +1,4 @@
+## In a cmd or posh prompt, go to the directory that your IntuneWinAppUtil.exe is located and use the template below to compile your installer and commands into an intunewin package ##
+## Make sure your msi/exe, install, and uninstall script are all in the same folder. It will compile all into the intunewin package ##
+
+.\IntuneWinAppUtil.exe -c "PathToFolderWithSetupFiles" -s "PathToInstallPS1" -o "PathToOutputFolder"
